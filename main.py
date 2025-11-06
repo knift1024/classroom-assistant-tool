@@ -313,6 +313,14 @@ class MainToolBar(QWidget):
         if self.picker_widget and self.picker_widget.isVisible():
             self.picker_widget.raise_()
 
+    def _start_drawing_after_animation(self):
+        self.hide()
+        # A brief delay to ensure the window is hidden before capturing the screen
+        QTimer.singleShot(50, lambda: (
+            self.draw_window.toggle_drawing_mode(True),
+            self.show()
+        ))
+
     def toggle_drawing(self):
         # 螢幕畫記視窗比較特殊，通常是全螢幕的
         if self.draw_window is None:
@@ -323,14 +331,16 @@ class MainToolBar(QWidget):
             self.draw_window.canvas_activated.connect(self.raise_all_tools)
 
         if not self.draw_window.isVisible():
-            self.hide() # 關鍵修改：在顯示畫布前，先隱藏主工具列
             self.draw_button.setText("結束畫記") # 改變按鈕文字
-            # 使用 QTimer.singleShot 來延遲截圖，確保主視窗已完全隱藏，避免截到黑畫面
-            # 修改後的 lambda：在啟動畫記模式後，立即重新顯示主工具列，使其浮在畫布之上
-            QTimer.singleShot(200, lambda: (
-                self.draw_window.toggle_drawing_mode(True),
-                self.show()
-            ))
+
+            # 如果是展開的，就收合它，並等待動畫結束
+            if self.is_expanded:
+                self.toggle_expansion()
+                # 動畫時長為 150ms，我們等待稍長一點的時間
+                QTimer.singleShot(160, self._start_drawing_after_animation)
+            else:
+                # 如果本來就是收合的，直接開始畫圖程序
+                self._start_drawing_after_animation()
         else:
             # 呼叫 end_drawing_mode() 而不是 toggle_drawing_mode(False)。
             # end_drawing_mode 會發射 drawing_mode_ended 信號，觸發 on_drawing_mode_ended 來重設按鈕文字。
