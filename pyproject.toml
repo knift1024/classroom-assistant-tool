@@ -1,0 +1,9 @@
+[tool.briefcase]
+project_name = "MyApp"
+bundle = "com.example"
+version = "0.0.1"
+
+[tool.briefcase.app.myapp]
+formal_name = "My App"
+description = "A sample app"
+sources = ["src/myapp"]
