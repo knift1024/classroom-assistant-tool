@@ -23,6 +23,7 @@ class MovableToolbar(QWidget):
     pattern_changed = pyqtSignal(str)
     font_changed = pyqtSignal(str)
     font_size_changed = pyqtSignal(int)
+    opacity_changed = pyqtSignal(int)
     tool_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -35,6 +36,7 @@ class MovableToolbar(QWidget):
 
         # --- 工具狀態與設定 ---
         self.pen_color = QColor("#FF0000") # 預設畫筆顏色
+        self.pen_opacity = 255 # 預設不透明度
         self.recent_colors = deque([QColor("#0000FF"), QColor("#008000")], maxlen=2) # 最近使用的顏色
         self.current_tool_name = 'freehand'
         self.previous_tool_name = 'freehand'
@@ -108,6 +110,7 @@ class MovableToolbar(QWidget):
         self.color_palette_panel.color_selected.connect(self._update_color_state)
         self.color_palette_panel.custom_color_requested.connect(self._handle_custom_color_requested)
         self.width_slider.valueChanged.connect(self.width_changed)
+        self.opacity_slider.valueChanged.connect(self.opacity_changed)
 
         # 功能按鈕
         self.smooth_button.toggled.connect(self.smoothing_toggled)
@@ -129,6 +132,7 @@ class MovableToolbar(QWidget):
             self.freehand_sub_mode = 'highlighter' if self.freehand_sub_mode == 'freehand' else 'freehand'
             self.freehand_highlighter_button.swap_states() # 呼叫按鈕自己的方法來交換外觀
         self.current_tool_name = self.freehand_sub_mode
+        self.opacity_slider.setEnabled(self.current_tool_name == 'freehand')
         self.tool_changed.emit(self.current_tool_name)
 
     def _on_line_arrow_clicked(self):
@@ -168,6 +172,10 @@ class MovableToolbar(QWidget):
             
             if new_tool == 'text':
                 self.set_text_options_visibility(True)
+
+            # 根據工具決定是否啟用透明度滑桿
+            is_adjustable_opacity_tool = new_tool not in ['eraser', 'highlighter', 'laser_pointer']
+            self.opacity_slider.setEnabled(is_adjustable_opacity_tool)
 
             self.tool_changed.emit(self.current_tool_name)
 
@@ -293,6 +301,10 @@ class MovableToolbar(QWidget):
         smoothing = settings.value("smoothing_enabled", True, type=bool)
         self.smooth_button.setChecked(smoothing)
 
+        # Load opacity
+        opacity = settings.value("pen_opacity", 255, type=int)
+        self.opacity_slider.setValue(opacity)
+
         # Load position
         geometry = settings.value("toolbar_geometry", None)
         if geometry and isinstance(geometry, QRect):
@@ -310,6 +322,7 @@ class MovableToolbar(QWidget):
         settings.setValue("font_family", self.text_options_panel.font_combo.currentText())
         settings.setValue("font_size", int(self.text_options_panel.font_size_combo.currentText()))
         settings.setValue("smoothing_enabled", self.smooth_button.isChecked())
+        settings.setValue("pen_opacity", self.opacity_slider.value())
         settings.setValue("toolbar_geometry", self.geometry())
 
     def eventFilter(self, watched, event):

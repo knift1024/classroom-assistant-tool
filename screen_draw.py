@@ -63,6 +63,7 @@ class ScreenDrawWindow(QWidget):
         self.drawing = False
         self.last_point = QPoint()
         self.pen_color = QColor("#FF0000")
+        self.pen_opacity = 255
         self.pen_width = 5
         self.eraser_width = 20
 
@@ -134,6 +135,7 @@ class ScreenDrawWindow(QWidget):
         self.toolbar.pattern_changed.connect(self.handle_pattern_change)
         self.toolbar.font_changed.connect(self.handle_font_change)
         self.toolbar.font_size_changed.connect(self.handle_font_size_change)
+        self.toolbar.opacity_changed.connect(self.handle_opacity_change)
         self.toolbar.toolbar_activated.connect(self.canvas_activated.emit)
 
     def _setup_shortcuts(self):
@@ -189,6 +191,9 @@ class ScreenDrawWindow(QWidget):
             self.eraser_width = width
         else:
             self.pen_width = width
+
+    def handle_opacity_change(self, opacity: int):
+        self.pen_opacity = opacity
 
     def toggle_smoothing(self, enabled: bool):
         self.smoothing_enabled = enabled
@@ -433,6 +438,12 @@ class ScreenDrawWindow(QWidget):
         self.toolbar.pattern_combo.setCurrentText(pattern_map_rev.get(self.pattern_mode, "無"))
         self.toolbar.pattern_combo.blockSignals(False)
 
+    def _get_current_pen_color(self) -> QColor:
+        """Returns the current pen color with the correct opacity."""
+        color = QColor(self.pen_color)
+        color.setAlpha(self.pen_opacity)
+        return color
+
     def draw_arrow(self, painter: QPainter, start_point: QPoint, end_point: QPoint):
         line = end_point - start_point
         if line.isNull(): return
@@ -455,7 +466,7 @@ class ScreenDrawWindow(QWidget):
     def _commit_text_input(self):
         if self.text_input and self.text_input.text():
             painter = QPainter(self.image)
-            painter.setPen(self.pen_color)
+            painter.setPen(self._get_current_pen_color())
             painter.setFont(self.font)
             text_rect = self.text_input.geometry()
             draw_rect = text_rect.adjusted(3, 0, -5, 0)
@@ -511,7 +522,8 @@ class ScreenDrawWindow(QWidget):
                         painter.setPen(QPen(Qt.transparent, self.eraser_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
                         width = self.eraser_width
                     else:
-                        painter.setPen(QPen(self.pen_color, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                        pen_color_with_opacity = self._get_current_pen_color()
+                        painter.setPen(QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
                         width = self.pen_width
                     painter.drawPoint(self.last_point)
                     painter.end()
@@ -590,7 +602,8 @@ class ScreenDrawWindow(QWidget):
                     painter.setCompositionMode(QPainter.CompositionMode_Clear)
                     pen = QPen(Qt.transparent, self.eraser_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                 else:
-                    pen = QPen(self.pen_color, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen_color_with_opacity = self._get_current_pen_color()
+                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                 painter.setPen(pen)
                 if self.current_tool == 'freehand' and self.smoothing_enabled:
                     self.point_buffer.append(current_pos)
@@ -623,7 +636,8 @@ class ScreenDrawWindow(QWidget):
                 if self.start_point and self.start_point != final_point:
                     painter = QPainter(self.image)
                     painter.setRenderHint(QPainter.Antialiasing)
-                    pen = QPen(self.pen_color, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen_color_with_opacity = self._get_current_pen_color()
+                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                     painter.setPen(pen)
                     if self.current_tool == 'line':
                         painter.drawLine(self.start_point, final_point)
@@ -660,7 +674,8 @@ class ScreenDrawWindow(QWidget):
                     painter = QPainter(self.image)
                     if self.smoothing_enabled:
                         painter.setRenderHint(QPainter.Antialiasing)
-                    pen = QPen(self.pen_color, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen_color_with_opacity = self._get_current_pen_color()
+                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                     painter.setPen(pen)
                     if len(self.point_buffer) == 1:
                         painter.drawPoint(self.point_buffer[0])
@@ -717,7 +732,8 @@ class ScreenDrawWindow(QWidget):
         
 
         if self.drawing and self.start_point and self.current_point:
-            preview_pen = QPen(QColor(0, 120, 255), 2, Qt.DashLine) if self.current_tool == 'crop' else QPen(self.pen_color, self.pen_width, Qt.DashLine)
+            pen_color_with_opacity = self._get_current_pen_color()
+            preview_pen = QPen(QColor(0, 120, 255), 2, Qt.DashLine) if self.current_tool == 'crop' else QPen(pen_color_with_opacity, self.pen_width, Qt.DashLine)
             painter.setPen(preview_pen)
             if self.current_tool == 'line':
                 painter.drawLine(self.start_point, self.current_point)

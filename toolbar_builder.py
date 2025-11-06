@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QPushButton, QSlider, QHBoxLayout, QComboBox,
-                             QButtonGroup, QWidget, QSizePolicy)
+                             QButtonGroup, QWidget, QSizePolicy, QVBoxLayout)
 from PyQt5.QtCore import QByteArray, QSize, Qt
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QColor
 
@@ -111,11 +111,26 @@ class ToolbarUIBuilder:
         self.toolbar.main_color_button.setText("▼")
         self.layout.addWidget(self.toolbar.main_color_button)
 
+        # 建立一個垂直容器來放置粗細和透明度滑桿
+        slider_container = QWidget()
+        slider_layout = QVBoxLayout(slider_container)
+        slider_layout.setContentsMargins(0, 0, 0, 0)
+        slider_layout.setSpacing(2)
+
         self.toolbar.width_slider = QSlider(Qt.Horizontal)
         self.toolbar.width_slider.setToolTip("調整畫筆或橡皮擦的粗細")
-        self.toolbar.width_slider.setRange(1, 50) # 增加最大寬度
-        self.toolbar.width_slider.setMinimumWidth(70) # 限制最小寬度
-        self.layout.addWidget(self.toolbar.width_slider)
+        self.toolbar.width_slider.setRange(1, 50)
+        self.toolbar.width_slider.setMinimumWidth(70)
+        slider_layout.addWidget(self.toolbar.width_slider)
+
+        self.toolbar.opacity_slider = QSlider(Qt.Horizontal)
+        self.toolbar.opacity_slider.setToolTip("調整畫筆透明度")
+        self.toolbar.opacity_slider.setRange(1, 255) # 1=幾乎透明, 255=不透明
+        self.toolbar.opacity_slider.setValue(255) # 預設為不透明
+        self.toolbar.opacity_slider.setMinimumWidth(70)
+        slider_layout.addWidget(self.toolbar.opacity_slider)
+
+        self.layout.addWidget(slider_container)
 
         # --- 功能按鈕 ---
         self.toolbar.smooth_button = self._create_functional_button("平滑化", toolbar_font, checkable=True, tooltip="啟用後，手繪筆觸會更圓滑")

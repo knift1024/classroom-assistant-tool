@@ -1,14 +1,22 @@
 import sys
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QSpinBox, QApplication, QMessageBox, QTabWidget, QListWidget)
-from PyQt5.QtCore import QTimer, Qt, QTime, QSettings
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QTimer, Qt, QTime, QSettings, QRectF
+from PyQt5.QtGui import QFont, QPainter, QColor, QPen, QFontMetrics
 
 class CountdownTab(QWidget):
     """倒數計時功能分頁"""
     def __init__(self):
         super().__init__()
+        self.total_seconds = 0
         self.remaining_seconds = 0
+        self.is_warning_phase = False
+        self.blink_state = True
+        self.time_text = "00:00"
+
+        # 定義字體
+        self.normal_font = QFont("Arial", 48, QFont.Bold)
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_countdown)
         self.init_ui()
@@ -18,10 +26,10 @@ class CountdownTab(QWidget):
         input_layout = QHBoxLayout()
         button_layout = QHBoxLayout()
 
-        self.time_label = QLabel("00:00")
-        # 將字體設定移至 QSS 樣式表中，以避免被覆蓋
-        self.time_label.setObjectName("CountdownTimeLabel")
-        self.time_label.setAlignment(Qt.AlignCenter)
+        # 繪圖畫布，不再需要 QLabel
+        self.canvas = QWidget()
+        self.canvas.setMinimumSize(280, 280)
+        self.canvas.paintEvent = self.paint_canvas
 
         self.min_spinbox = QSpinBox()
         self.min_spinbox.setRange(0, 99)
@@ -44,7 +52,7 @@ class CountdownTab(QWidget):
         button_layout.addWidget(self.pause_button)
         button_layout.addWidget(self.reset_button)
 
-        main_layout.addWidget(self.time_label)
+        main_layout.addWidget(self.canvas, 0, Qt.AlignCenter)
         main_layout.addLayout(input_layout)
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
@@ -55,10 +63,75 @@ class CountdownTab(QWidget):
 
         self.update_ui_state(running=False)
 
+    def paint_canvas(self, event):
+        """在畫布上繪製所有視覺元素：進度條和時間文字"""
+        painter = QPainter(self.canvas)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # 計算圓形和文字顯示的區域
+        side = min(self.canvas.width(), self.canvas.height()) - 20
+        circle_rect = QRectF(
+            (self.canvas.width() - side) / 2,
+            (self.canvas.height() - side) / 2,
+            side,
+            side
+        )
+        
+        text_margin = 20 # 文字距離圓形邊緣的邊距
+        text_display_rect = circle_rect.adjusted(text_margin, text_margin, -text_margin, -text_margin)
+
+        # 1. 繪製進度條
+        if self.total_seconds > 0:
+            # 繪製背景圓環
+            pen = QPen(QColor("#5A6B7C"), 12)
+            painter.setPen(pen)
+            painter.drawArc(circle_rect, 0, 360 * 16)
+
+            # 繪製進度圓環
+            progress_color = QColor("#87CEFA") if not self.is_warning_phase else QColor("#FF6347")
+            pen.setColor(progress_color)
+            pen.setCapStyle(Qt.RoundCap)
+            painter.setPen(pen)
+            
+            angle = (self.remaining_seconds / self.total_seconds) * 360
+            painter.drawArc(circle_rect, 90 * 16, -int(angle * 16))
+
+        # 2. 繪製時間文字
+        if self.is_warning_phase:
+            font_size = 1
+            # 避免無限迴圈，設定一個最大字體大小的上限
+            max_possible_font_size = int(text_display_rect.height() * 0.8) 
+            
+            while font_size <= max_possible_font_size:
+                test_font = QFont("Arial", font_size, QFont.Bold)
+                font_metrics = QFontMetrics(test_font)
+                text_width = font_metrics.horizontalAdvance(self.time_text)
+                text_height = font_metrics.height()
+
+                if text_width < text_display_rect.width() and text_height < text_display_rect.height():
+                    font_size += 1
+                else:
+                    font_size = max(1, font_size - 1) # 回到上一個能容納的大小
+                    break
+            
+            final_font = QFont("Arial", font_size, QFont.Bold)
+            painter.setFont(final_font)
+
+            text_color = QColor("#FF4500") if self.blink_state else QColor("#8B0000")
+            painter.setPen(text_color)
+        else:
+            painter.setFont(self.normal_font)
+            painter.setPen(QColor("white"))
+        
+        painter.drawText(text_display_rect, Qt.AlignCenter, self.time_text)
+
     def start_timer(self):
         minutes = self.min_spinbox.value()
         seconds = self.sec_spinbox.value()
-        self.remaining_seconds = minutes * 60 + seconds
+        
+        self.total_seconds = minutes * 60 + seconds
+        self.remaining_seconds = self.total_seconds
+        self.is_warning_phase = False
 
         if self.remaining_seconds > 0:
             self.timer.start(1000)
@@ -77,22 +150,38 @@ class CountdownTab(QWidget):
     def reset_timer(self):
         self.timer.stop()
         self.remaining_seconds = 0
+        self.total_seconds = 0
+        self.is_warning_phase = False
         self.update_display()
         self.update_ui_state(running=False)
 
     def update_countdown(self):
-        self.remaining_seconds -= 1
+        if self.remaining_seconds > 0:
+            self.remaining_seconds -= 1
+
+        if self.remaining_seconds <= 60 and not self.is_warning_phase:
+            self.is_warning_phase = True
+        
+        if self.is_warning_phase and self.remaining_seconds > 0:
+            self.blink_state = not self.blink_state
+        
         self.update_display()
+
         if self.remaining_seconds <= 0:
             self.timer.stop()
+            self.is_warning_phase = False
             self.update_ui_state(running=False)
             QApplication.beep()
             QMessageBox.information(self, "時間到！", "倒數計時結束！")
 
     def update_display(self):
-        minutes = self.remaining_seconds // 60
-        seconds = self.remaining_seconds % 60
-        self.time_label.setText(f"{minutes:02d}:{seconds:02d}")
+        if self.remaining_seconds <= 60 and self.remaining_seconds > 0:
+            self.time_text = f"{self.remaining_seconds:02d}"
+        else:
+            minutes = self.remaining_seconds // 60
+            seconds = self.remaining_seconds % 60
+            self.time_text = f"{minutes:02d}:{seconds:02d}"
+        self.canvas.update() # 強制重繪畫布
 
     def update_ui_state(self, running: bool):
         self.start_button.setEnabled(not running)
