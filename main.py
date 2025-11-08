@@ -363,6 +363,10 @@ class MainToolBar(QWidget):
             self.timer_widget.raise_()
             self.timer_widget.activateWindow()
 
+        # 如果工具列是展開的，就收合它
+        if self.is_expanded:
+            self.toggle_expansion()
+
     def open_picker(self):
         # 首次點擊時創建視窗，之後重複使用
         if self.picker_widget is None:
@@ -374,6 +378,10 @@ class MainToolBar(QWidget):
             # 如果視窗已存在，則將其帶到最上層並設為活動視窗
             self.picker_widget.raise_()
             self.picker_widget.activateWindow()
+
+        # 如果工具列是展開的，就收合它
+        if self.is_expanded:
+            self.toggle_expansion()
 
 if __name__ == '__main__':
     # 啟用高 DPI 縮放，讓 Qt 自動根據系統 DPI 設定調整 UI 元素大小
