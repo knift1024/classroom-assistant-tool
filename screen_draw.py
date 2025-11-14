@@ -54,6 +54,12 @@ class ScreenDrawWindow(QWidget):
 
         self.settings = QSettings(QSettings.IniFormat, QSettings.UserScope, "MyClassroomTools", "ScreenDraw")
 
+        # 獲取設備像素比例以適應高 DPI 螢幕
+        # 確保 device_pixel_ratio 至少為 1.0，以避免除以零或在標準 DPI 下線條過細
+        self.device_pixel_ratio = self.devicePixelRatioF()
+        if self.device_pixel_ratio <= 0:
+            self.device_pixel_ratio = 1.0
+
         self.image = QPixmap(screen_rect.size())
         self.image.fill(Qt.transparent)
 
@@ -448,7 +454,7 @@ class ScreenDrawWindow(QWidget):
         line = end_point - start_point
         if line.isNull(): return
         angle = math.atan2(-line.y(), line.x())
-        arrow_size = self.pen_width * 3 + 10
+        arrow_size = (self.pen_width * 3 + 10) / self.device_pixel_ratio # 調整箭頭大小以適應 DPI
         painter.drawLine(start_point, end_point)
         arrow_p1 = end_point - QPoint(int(math.cos(angle + math.pi / 6) * arrow_size), int(-math.sin(angle + math.pi / 6) * arrow_size))
         arrow_p2 = end_point - QPoint(int(math.cos(angle - math.pi / 6) * arrow_size), int(-math.sin(angle - math.pi / 6) * arrow_size))
@@ -519,11 +525,13 @@ class ScreenDrawWindow(QWidget):
                     width = 0
                     if self.current_tool == 'eraser':
                         painter.setCompositionMode(QPainter.CompositionMode_Clear)
-                        painter.setPen(QPen(Qt.transparent, self.eraser_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                        pen = QPen(Qt.transparent, self.eraser_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                        painter.setPen(pen)
                         width = self.eraser_width
                     else:
                         pen_color_with_opacity = self._get_current_pen_color()
-                        painter.setPen(QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                        pen = QPen(pen_color_with_opacity, self.pen_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                        painter.setPen(pen)
                         width = self.pen_width
                     painter.drawPoint(self.last_point)
                     painter.end()
@@ -586,7 +594,7 @@ class ScreenDrawWindow(QWidget):
                 painter = QPainter(self.image)
                 painter.setRenderHint(QPainter.Antialiasing)
                 highlighter_color = QColor(self.pen_color.red(), self.pen_color.green(), self.pen_color.blue(), 64)
-                pen = QPen(highlighter_color, self.pen_width * 2, Qt.SolidLine, Qt.SquareCap, Qt.RoundJoin)
+                pen = QPen(highlighter_color, (self.pen_width * 2) / self.device_pixel_ratio, Qt.SolidLine, Qt.SquareCap, Qt.RoundJoin)
                 painter.setPen(pen)
                 painter.drawLine(self.last_point, current_pos)
                 painter.end()
@@ -600,10 +608,10 @@ class ScreenDrawWindow(QWidget):
                     painter.setRenderHint(QPainter.Antialiasing)
                 if self.current_tool == 'eraser':
                     painter.setCompositionMode(QPainter.CompositionMode_Clear)
-                    pen = QPen(Qt.transparent, self.eraser_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen = QPen(Qt.transparent, self.eraser_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                 else:
                     pen_color_with_opacity = self._get_current_pen_color()
-                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen = QPen(pen_color_with_opacity, self.pen_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                 painter.setPen(pen)
                 if self.current_tool == 'freehand' and self.smoothing_enabled:
                     self.point_buffer.append(current_pos)
@@ -637,7 +645,7 @@ class ScreenDrawWindow(QWidget):
                     painter = QPainter(self.image)
                     painter.setRenderHint(QPainter.Antialiasing)
                     pen_color_with_opacity = self._get_current_pen_color()
-                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen = QPen(pen_color_with_opacity, self.pen_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                     painter.setPen(pen)
                     if self.current_tool == 'line':
                         painter.drawLine(self.start_point, final_point)
@@ -675,7 +683,7 @@ class ScreenDrawWindow(QWidget):
                     if self.smoothing_enabled:
                         painter.setRenderHint(QPainter.Antialiasing)
                     pen_color_with_opacity = self._get_current_pen_color()
-                    pen = QPen(pen_color_with_opacity, self.pen_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                    pen = QPen(pen_color_with_opacity, self.pen_width / self.device_pixel_ratio, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                     painter.setPen(pen)
                     if len(self.point_buffer) == 1:
                         painter.drawPoint(self.point_buffer[0])
@@ -733,7 +741,7 @@ class ScreenDrawWindow(QWidget):
 
         if self.drawing and self.start_point and self.current_point:
             pen_color_with_opacity = self._get_current_pen_color()
-            preview_pen = QPen(QColor(0, 120, 255), 2, Qt.DashLine) if self.current_tool == 'crop' else QPen(pen_color_with_opacity, self.pen_width, Qt.DashLine)
+            preview_pen = QPen(QColor(0, 120, 255), 2 / self.device_pixel_ratio, Qt.DashLine) if self.current_tool == 'crop' else QPen(pen_color_with_opacity, self.pen_width / self.device_pixel_ratio, Qt.DashLine)
             painter.setPen(preview_pen)
             if self.current_tool == 'line':
                 painter.drawLine(self.start_point, self.current_point)
@@ -758,26 +766,26 @@ class ScreenDrawWindow(QWidget):
 
         if self.laser_trail_segments:
             num_segments = len(self.laser_trail_segments)
-            max_width = self.pen_width
+            max_width = self.pen_width / self.device_pixel_ratio # 調整雷射筆的最大寬度
             taper_length = min(15, num_segments // 2)
             for i, (start_p, end_p, opacity) in enumerate(self.laser_trail_segments):
                 if taper_length > 0:
                     if i < taper_length:
-                        current_width = max(1, max_width * ((i + 1) / taper_length))
+                        current_width = max(1.0 / self.device_pixel_ratio, max_width * ((i + 1) / taper_length))
                     elif i >= num_segments - taper_length:
-                        current_width = max(1, max_width * ((num_segments - i) / taper_length))
+                        current_width = max(1.0 / self.device_pixel_ratio, max_width * ((num_segments - i) / taper_length))
                     else:
                         current_width = max_width
                 else:
                     current_width = max_width
                 color = self.pen_color
-                laser_pen = QPen(QColor(color.red(), color.green(), color.blue(), opacity), int(current_width), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+                laser_pen = QPen(QColor(color.red(), color.green(), color.blue(), opacity), current_width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
                 painter.setPen(laser_pen)
                 painter.drawLine(start_p, end_p)
 
         if self.current_tool == 'eraser' and self.rect().contains(self.cursor_pos):
-            radius = self.eraser_width / 2
-            painter.setPen(QPen(QColor(128, 128, 128, 200), 1, Qt.DashLine))
+            radius = (self.eraser_width / self.device_pixel_ratio) / 2 # 調整橡皮擦預覽圓圈的半徑
+            painter.setPen(QPen(QColor(128, 128, 128, 200), 1 / self.device_pixel_ratio, Qt.DashLine)) # 調整預覽圓圈的線寬
             painter.setBrush(Qt.NoBrush)
             painter.drawEllipse(self.cursor_pos, radius, radius)
 
